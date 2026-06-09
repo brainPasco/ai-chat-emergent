@@ -25,6 +25,11 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
       return;
     }
+    // Skip /me on /login to avoid noisy 401
+    if (window.location.pathname === "/login") {
+      setLoading(false);
+      return;
+    }
     refresh();
   }, [refresh]);
 

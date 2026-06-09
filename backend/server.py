@@ -319,10 +319,13 @@ async def stream_gemini(req: ChatRequest, user: dict) -> AsyncGenerator[str, Non
         )
 
         first_chunk = True
+        emitted_generating = False
         for chunk in stream:
             if first_chunk:
                 state = "thinking" if req.mode == "pro" else "generating"
                 yield f"data: {json.dumps({'type': 'status', 'state': state})}\n\n"
+                if req.mode != "pro":
+                    emitted_generating = True
                 first_chunk = False
 
             text_delta = ""
@@ -346,7 +349,8 @@ async def stream_gemini(req: ChatRequest, user: dict) -> AsyncGenerator[str, Non
 
             if text_delta:
                 full_text += text_delta
-                if "```" in full_text and not getattr(stream_gemini, "_emitted_gen", False):
+                if "```" in full_text and not emitted_generating:
+                    emitted_generating = True
                     yield f"data: {json.dumps({'type': 'status', 'state': 'generating'})}\n\n"
                 yield f"data: {json.dumps({'type': 'delta', 'text': text_delta})}\n\n"
 
