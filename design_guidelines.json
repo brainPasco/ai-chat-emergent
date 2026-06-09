@@ -1,0 +1,94 @@
+{
+  "theme": "Dark",
+  "archetype": "Archetype 7: Electric & Neon (Retro-Futurism / Developer Tool)",
+  "emotional_tone": "Cutting-edge, highly technical, immersive, and intelligent.",
+  "typography": {
+    "headings": {
+      "family": "Outfit",
+      "weights": ["400", "700"],
+      "usage": "Use for primary marketing copy, app headers, and command palette titles.",
+      "letter_spacing": "tracking-tight"
+    },
+    "body": {
+      "family": "IBM Plex Sans",
+      "weights": ["400", "500"],
+      "usage": "Standard UI text, chat messages, settings labels."
+    },
+    "mono_code": {
+      "family": "JetBrains Mono",
+      "weights": ["400"],
+      "usage": "Code blocks, live preview artifacts, typing indicator status ('Thinking...'), and tech-heavy badges."
+    },
+    "hierarchy_rules": "Max heading size text-5xl for workspace context. Do not use generic fonts like Inter or Roboto."
+  },
+  "colors": {
+    "background": {
+      "primary": "#050505",
+      "secondary": "#0A0A0A",
+      "tailwind_classes": "bg-[#050505]"
+    },
+    "foreground": {
+      "primary": "#FAFAFA",
+      "muted": "#A1A1AA"
+    },
+    "accents": {
+      "electric_blue": "#007AFF",
+      "laser_green": "#39FF14",
+      "cyber_yellow": "#FFFF00",
+      "neon_cyan": "#00FFFF"
+    },
+    "borders": {
+      "default": "rgba(255, 255, 255, 0.1)",
+      "active": "rgba(0, 122, 255, 0.5)"
+    },
+    "usage_rules": "Do NOT use pure #000000. Tint black slightly. Do not use Teal (#1B93A4) or Purple. Laser Green used exclusively for 'Generating...' success states. Cyber Yellow for Search Grounding citations."
+  },
+  "surfaces_and_textures": {
+    "workspace_panels": "Retro-Futurism: Flat #0A0A0A background with 1px solid border-white/10. No soft shadows. Crisp edges.",
+    "command_palette_overlay": "Crystal Glassmorphism: bg-black/60 with backdrop-blur-2xl and 1px border-white/10.",
+    "chat_bubbles": "User: bg-white/5 border-white/10. AI: transparent background with glowing left-border (e.g. border-l-2 border-blue-500).",
+    "buttons": "Flat surfaces with sharp hover states. Primary CTA: bg-blue-600 hover:bg-blue-500 text-white."
+  },
+  "layout_and_spacing": {
+    "strategy": "The 'Control Room' Grid Protocol. Highly structured, dense yet clean.",
+    "structure": "Two main panels: Left (Chat/Controls) takes 30-40% width. Right (Live Render Preview) takes 60-70% width.",
+    "spacing_scale": "Use padding p-4 or p-6 inside panels. Add gap-4 between chat messages. The header is h-14 or h-16 with px-4.",
+    "borders": "Expose the skeleton. Panels are separated by solid 1px border-white/10."
+  },
+  "motion_and_interactions": {
+    "typing_indicator": "Use Framer Motion to animate status text ('Thinking...', 'Initializing...', 'Generating...'). Add a subtle pulsing glow using drop-shadow with the respective color (Yellow, Cyan, Green).",
+    "artifacts_tabs": "Smooth layout transitions between 'Preview' and 'Code' using framer-motion AnimatePresence and layoutId.",
+    "hover_states": "All buttons and interactive elements must change background lightness on hover and retain high contrast."
+  },
+  "components_strategy": {
+    "shadcn_ui": "Use Shadcn Button, Card, Input, Badge, Tabs, ScrollArea, Separator, Skeleton, Switch, Slider.",
+    "customization": "Strip default Vercel-like rounded borders. Enforce radius 'rounded-md' or 'rounded-none' for a sharper, technical feel.",
+    "lucide_react": "Use for all icons (e.g., Bot, User, Code, Play, Search, Command, Settings).",
+    "react_live": "Implement custom styling for the LiveProvider/LivePreview wrapper to feel like a high-end IDE."
+  },
+  "images_and_media": {
+    "landing_hero_background": {
+      "url": "https://images.unsplash.com/photo-1640346876473-f76a73c71539?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njd8MHwxfHNlYXJjaHwzfHxhYnN0cmFjdCUyMGRhcmslMjBncmlkfGVufDB8fHx8MTc4MTA0NzIyM3ww&ixlib=rb-4.1.0&q=85",
+      "description": "Abstract dark building cubes for login/landing background to provide a technical, architectural depth."
+    },
+    "fallback_texture": {
+      "url": "https://images.unsplash.com/photo-1517241034903-9a4c3ab12f00?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njd8MHwxfHNlYXJjaHwyfHxhYnN0cmFjdCUyMGRhcmslMjBncmlkfGVufDB8fHx8MTc4MTA0NzIyM3ww&ixlib=rb-4.1.0&q=85",
+      "description": "Abstract wavy dark shapes for empty states or loading screens."
+    }
+  },
+  "accessibility_and_testing": {
+    "data_testid_rules": "All interactive elements (buttons, inputs, toggles, tab triggers, send buttons) MUST include a data-testid attribute.",
+    "examples": "data-testid='send-message-button', data-testid='chat-input', data-testid='tab-code-view', data-testid='cmd-palette-trigger', data-testid='login-button', data-testid='gemini-mode-switch'."
+  },
+  "instructions_to_main_agent": [
+    "Initialize React components using .jsx/.js as strictly instructed by user environment preferences.",
+    "Ensure the layout is a strict two-column design: Left for chat, Right for react-live rendering.",
+    "Install required dependencies: framer-motion, lucide-react, react-live, cmdk (or shadcn command).",
+    "Integrate Google Sign-In on a landing page utilizing the abstract dark cube background.",
+    "Set up the Gemini options switch in the header (Flash, Thinking, Grounding) with visually distinct active states.",
+    "Ensure the typing indicator clearly transitions between 'Thinking...', 'Initializing...', and 'Generating...' with appropriate neon glowing accents.",
+    "Implement the CMD+K command palette using framer-motion and the Crystal Glassmorphism style.",
+    "Ensure all UI is built strictly with the provided typography and color guidelines. DO NOT USE Inter font.",
+    "Add data-testid attributes to EVERY interactive component."
+  ]
+}
