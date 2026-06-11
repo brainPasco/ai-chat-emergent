@@ -84,3 +84,9 @@ frontend/node_modules/.cache/default-development/3.pack
 project-export.tar.gz
 frontend/node_modules/.cache/default-development/4.pack
 frontend/node_modules/.cache/default-development/6.pack_
+.env
+.env.*
+*.env
+credentials.json
+*.key
+.credentials
