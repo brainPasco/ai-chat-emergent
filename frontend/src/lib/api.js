@@ -21,6 +21,19 @@ export const api = {
   renameSession: (id, title) =>
     client.patch(`/sessions/${id}`, { title }).then((r) => r.data),
   getMessages: (id) => client.get(`/sessions/${id}/messages`).then((r) => r.data),
+
+  // Providers
+  listProviders: () => client.get("/providers").then((r) => r.data),
+  createProvider: (body) => client.post("/providers", body).then((r) => r.data),
+  updateProvider: (id, body) => client.patch(`/providers/${id}`, body).then((r) => r.data),
+  deleteProvider: (id) => client.delete(`/providers/${id}`).then((r) => r.data),
+  testProvider: (id) => client.post(`/providers/${id}/test`).then((r) => r.data),
+
+  // Admin
+  adminMe: () => client.get("/admin/me").then((r) => r.data),
+  adminStats: () => client.get("/admin/stats").then((r) => r.data),
+  adminUsers: () => client.get("/admin/users").then((r) => r.data),
+  adminDeleteUser: (id) => client.delete(`/admin/users/${id}`).then((r) => r.data),
 };
 
 /**

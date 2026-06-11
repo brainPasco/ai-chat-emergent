@@ -14,12 +14,23 @@ import {
   ChevronRight,
   Settings2,
   MessageSquare,
+  Shield,
+  ChevronDown,
+  CircuitBoard,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 
 import { useAuth } from "@/contexts/AuthContext";
@@ -46,9 +57,29 @@ export default function Workspace() {
   const [enableGrounding, setEnableGrounding] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [artifactCode, setArtifactCode] = useState(null);
+  const [activeProvider, setActiveProvider] = useState(null); // OpenAI-compatible override
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const streamCtrlRef = useRef(null);
   const stagingAssistant = useRef(""); // current streaming content
+
+  // Load active provider + admin status
+  useEffect(() => {
+    (async () => {
+      try {
+        const list = await api.listProviders();
+        const active = list.find((p) => p.is_active) || null;
+        setActiveProvider(active);
+      } catch {}
+      try {
+        const m = await api.adminMe();
+        setIsAdmin(!!m.is_admin);
+      } catch {}
+    })();
+  }, []);
+
+  const usingOpenAI = !!activeProvider;
+  const effectiveModelLabel = usingOpenAI ? activeProvider.model : (mode === "pro" ? "gemini-3.1-pro-preview" : "gemini-3.1-flash-lite-preview");
 
   // Bootstrap sessions list
   useEffect(() => {
@@ -152,7 +183,7 @@ export default function Workspace() {
           sessionId: activeId,
           prompt,
           mode,
-          enableGrounding,
+          enableGrounding: usingOpenAI ? false : enableGrounding,
           history,
         },
         (evt) => {
@@ -209,7 +240,7 @@ export default function Workspace() {
       );
       streamCtrlRef.current = ctrl;
     },
-    [activeId, messages, mode, enableGrounding]
+    [activeId, messages, mode, enableGrounding, usingOpenAI]
   );
 
   // Tab control proxy for command palette
@@ -235,44 +266,58 @@ export default function Workspace() {
           </div>
         </div>
 
-        {/* Center: mode + grounding */}
+        {/* Center: mode + grounding OR provider badge */}
         <div className="flex items-center gap-2">
-          <div className="flex border border-white/10 rounded-md overflow-hidden h-8" data-testid="mode-toggle-group">
-            <button
-              data-testid="mode-pro-button"
-              onClick={() => setMode("pro")}
-              className={`px-3 h-full text-[11px] font-mono-code uppercase tracking-wider flex items-center gap-1.5 transition ${
-                mode === "pro" ? "bg-white/10 text-[#FFFF00]" : "text-white/50 hover:text-white"
-              }`}
+          {usingOpenAI ? (
+            <div
+              data-testid="active-provider-badge"
+              className="h-8 px-3 border border-[#39FF14]/40 bg-[#39FF14]/[0.05] rounded-md flex items-center gap-2 font-mono-code text-[11px] uppercase tracking-wider text-[#39FF14] glow-green"
             >
-              <Cpu className="h-3 w-3" /> Thinking
-            </button>
-            <div className="w-px bg-white/10" />
-            <button
-              data-testid="mode-flash-button"
-              onClick={() => setMode("flash")}
-              className={`px-3 h-full text-[11px] font-mono-code uppercase tracking-wider flex items-center gap-1.5 transition ${
-                mode === "flash" ? "bg-white/10 text-[#39FF14]" : "text-white/50 hover:text-white"
-              }`}
-            >
-              <Zap className="h-3 w-3" /> Flash
-            </button>
-          </div>
+              <CircuitBoard className="h-3 w-3" />
+              <span>{activeProvider.name}</span>
+              <span className="text-white/40 normal-case tracking-normal">·</span>
+              <span className="text-white/80 normal-case tracking-normal">{activeProvider.model}</span>
+            </div>
+          ) : (
+            <>
+              <div className="flex border border-white/10 rounded-md overflow-hidden h-8" data-testid="mode-toggle-group">
+                <button
+                  data-testid="mode-pro-button"
+                  onClick={() => setMode("pro")}
+                  className={`px-3 h-full text-[11px] font-mono-code uppercase tracking-wider flex items-center gap-1.5 transition ${
+                    mode === "pro" ? "bg-white/10 text-[#FFFF00]" : "text-white/50 hover:text-white"
+                  }`}
+                >
+                  <Cpu className="h-3 w-3" /> Thinking
+                </button>
+                <div className="w-px bg-white/10" />
+                <button
+                  data-testid="mode-flash-button"
+                  onClick={() => setMode("flash")}
+                  className={`px-3 h-full text-[11px] font-mono-code uppercase tracking-wider flex items-center gap-1.5 transition ${
+                    mode === "flash" ? "bg-white/10 text-[#39FF14]" : "text-white/50 hover:text-white"
+                  }`}
+                >
+                  <Zap className="h-3 w-3" /> Flash
+                </button>
+              </div>
 
-          <button
-            data-testid="grounding-toggle"
-            onClick={() => setEnableGrounding((v) => !v)}
-            className={`h-8 px-3 border rounded-md text-[11px] font-mono-code uppercase tracking-wider flex items-center gap-1.5 transition ${
-              enableGrounding
-                ? "border-[#00FFFF]/50 text-[#00FFFF] bg-[#00FFFF]/[0.06]"
-                : "border-white/10 text-white/50 hover:text-white"
-            }`}
-          >
-            <SearchIcon className="h-3 w-3" /> Grounding
-          </button>
+              <button
+                data-testid="grounding-toggle"
+                onClick={() => setEnableGrounding((v) => !v)}
+                className={`h-8 px-3 border rounded-md text-[11px] font-mono-code uppercase tracking-wider flex items-center gap-1.5 transition ${
+                  enableGrounding
+                    ? "border-[#00FFFF]/50 text-[#00FFFF] bg-[#00FFFF]/[0.06]"
+                    : "border-white/10 text-white/50 hover:text-white"
+                }`}
+              >
+                <SearchIcon className="h-3 w-3" /> Grounding
+              </button>
+            </>
+          )}
         </div>
 
-        {/* Right: command palette trigger + user */}
+        {/* Right: command palette trigger + user dropdown */}
         <div className="flex items-center gap-2">
           <button
             data-testid="cmd-palette-trigger"
@@ -288,29 +333,64 @@ export default function Workspace() {
           </button>
 
           {user && (
-            <div className="flex items-center gap-2 pl-2 border-l border-white/10">
-              {user.picture ? (
-                <img
-                  src={user.picture}
-                  alt={user.name}
-                  className="h-7 w-7 rounded-md border border-white/10"
-                  data-testid="user-avatar"
-                />
-              ) : (
-                <div className="h-7 w-7 rounded-md bg-white/10 grid place-items-center text-xs">
-                  {user.name?.[0]?.toUpperCase()}
-                </div>
-              )}
-              <span className="text-[12px] text-white/70 hidden md:inline">{user.name}</span>
-              <button
-                data-testid="logout-button"
-                onClick={handleLogout}
-                className="h-8 w-8 grid place-items-center border border-white/10 hover:bg-white/5 rounded-md transition"
-                title="Logout"
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  data-testid="user-menu-trigger"
+                  className="h-8 pl-2 pr-2 ml-1 border-l border-white/10 flex items-center gap-2 hover:bg-white/5 rounded-r-md transition"
+                >
+                  {user.picture ? (
+                    <img
+                      src={user.picture}
+                      alt={user.name}
+                      className="h-6 w-6 rounded-md border border-white/10"
+                      data-testid="user-avatar"
+                    />
+                  ) : (
+                    <div className="h-6 w-6 rounded-md bg-white/10 grid place-items-center text-xs">
+                      {user.name?.[0]?.toUpperCase()}
+                    </div>
+                  )}
+                  <span className="text-[12px] text-white/70 hidden md:inline">{user.name}</span>
+                  <ChevronDown className="h-3 w-3 text-white/50" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                data-testid="user-menu"
+                className="bg-[#0A0A0A] border-white/10 text-white min-w-[200px]"
               >
-                <LogOut className="h-3.5 w-3.5 text-white/60" />
-              </button>
-            </div>
+                <DropdownMenuLabel className="font-mono-code text-[10px] uppercase tracking-widest text-white/40 px-2 py-1.5">
+                  Signed in as
+                </DropdownMenuLabel>
+                <div className="px-2 pb-2 text-[12px] text-white/70 truncate">{user.email}</div>
+                <DropdownMenuSeparator className="bg-white/10" />
+                <DropdownMenuItem
+                  data-testid="menu-settings"
+                  onClick={() => navigate("/settings")}
+                  className="cursor-pointer focus:bg-white/5 gap-2 text-[12.5px]"
+                >
+                  <Settings2 className="h-3.5 w-3.5 text-[#007AFF]" /> Provider Settings
+                </DropdownMenuItem>
+                {isAdmin && (
+                  <DropdownMenuItem
+                    data-testid="menu-admin"
+                    onClick={() => navigate("/admin")}
+                    className="cursor-pointer focus:bg-white/5 gap-2 text-[12.5px]"
+                  >
+                    <Shield className="h-3.5 w-3.5 text-[#FFFF00]" /> Admin Panel
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator className="bg-white/10" />
+                <DropdownMenuItem
+                  data-testid="logout-button"
+                  onClick={handleLogout}
+                  className="cursor-pointer focus:bg-red-500/10 gap-2 text-[12.5px] text-red-400"
+                >
+                  <LogOut className="h-3.5 w-3.5" /> Log out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </header>
@@ -369,7 +449,7 @@ export default function Workspace() {
             ))}
           </div>
           <div className="p-3 border-t border-white/10 font-mono-code text-[10px] text-white/40 leading-relaxed">
-            <div>{M.model}</div>
+            <div className="truncate">{effectiveModelLabel}</div>
             <div className="text-white/30">offline-first · v0.1</div>
           </div>
         </aside>
@@ -384,6 +464,9 @@ export default function Workspace() {
             onStop={handleStop}
             mode={mode}
             enableGrounding={enableGrounding}
+            usingOpenAI={usingOpenAI}
+            providerLabel={activeProvider?.name}
+            providerModel={activeProvider?.model}
           />
         </div>
 
@@ -406,6 +489,9 @@ export default function Workspace() {
         onToggleGrounding={() => setEnableGrounding((v) => !v)}
         onLogout={handleLogout}
         onSwitchTab={() => {}}
+        onOpenSettings={() => navigate("/settings")}
+        onOpenAdmin={() => navigate("/admin")}
+        isAdmin={isAdmin}
         currentMode={mode}
         groundingEnabled={enableGrounding}
       />

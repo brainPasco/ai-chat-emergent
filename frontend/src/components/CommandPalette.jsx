@@ -22,6 +22,8 @@ import {
   Sparkles,
   Eye,
   Code,
+  Settings2,
+  Shield,
 } from "lucide-react";
 
 export default function CommandPalette({
@@ -33,6 +35,9 @@ export default function CommandPalette({
   onToggleGrounding,
   onLogout,
   onSwitchTab,
+  onOpenSettings,
+  onOpenAdmin,
+  isAdmin,
   currentMode,
   groundingEnabled,
 }) {
@@ -110,6 +115,19 @@ export default function CommandPalette({
               <Code className="mr-2 h-4 w-4" />
               <span>Show Code</span>
             </CommandItem>
+          </CommandGroup>
+          <CommandSeparator />
+          <CommandGroup heading="Navigation">
+            <CommandItem onSelect={() => run(onOpenSettings)} data-testid="cmd-open-settings">
+              <Settings2 className="mr-2 h-4 w-4 text-[#007AFF]" />
+              <span>Provider Settings</span>
+            </CommandItem>
+            {isAdmin && (
+              <CommandItem onSelect={() => run(onOpenAdmin)} data-testid="cmd-open-admin">
+                <Shield className="mr-2 h-4 w-4 text-[#FFFF00]" />
+                <span>Admin Panel</span>
+              </CommandItem>
+            )}
           </CommandGroup>
           <CommandSeparator />
           <CommandGroup heading="Account">

@@ -66,6 +66,23 @@ class ChatRequest(BaseModel):
     mode: str = "pro"  # "pro" | "flash"
     enable_grounding: bool = False
     history: List[dict] = Field(default_factory=list)
+    provider_id: Optional[str] = None  # if set, use the user's saved OpenAI-compatible provider
+
+
+class ProviderIn(BaseModel):
+    name: str
+    base_url: str
+    api_key: str
+    model: str
+    is_active: bool = False
+
+
+class ProviderPatch(BaseModel):
+    name: Optional[str] = None
+    base_url: Optional[str] = None
+    api_key: Optional[str] = None
+    model: Optional[str] = None
+    is_active: Optional[bool] = None
 
 
 # ============== AUTH HELPERS ==============
@@ -243,6 +260,266 @@ async def get_messages(session_id: str, user=Depends(get_current_user)):
     return msgs
 
 
+# ============== ADMIN HELPER ==============
+ADMIN_EMAILS = {e.strip().lower() for e in os.environ.get("ADMIN_EMAILS", "").split(",") if e.strip()}
+
+
+def is_admin(user: dict) -> bool:
+    return (user.get("email") or "").lower() in ADMIN_EMAILS
+
+
+async def require_admin(user=Depends(get_current_user)) -> dict:
+    if not is_admin(user):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user
+
+
+# ============== PROVIDER ROUTES (OpenAI-compatible) ==============
+def _sanitize_provider(p: dict, reveal: bool = False) -> dict:
+    api_key = p.get("api_key", "") or ""
+    masked = ("•" * max(0, len(api_key) - 4)) + api_key[-4:] if api_key else ""
+    return {
+        "provider_id": p.get("provider_id"),
+        "name": p.get("name"),
+        "base_url": p.get("base_url"),
+        "model": p.get("model"),
+        "is_active": bool(p.get("is_active")),
+        "api_key_masked": masked,
+        "api_key": api_key if reveal else None,
+        "created_at": p.get("created_at"),
+    }
+
+
+@api_router.get("/providers")
+async def list_providers(user=Depends(get_current_user)):
+    items = await db.llm_providers.find(
+        {"user_id": user["user_id"]}, {"_id": 0}
+    ).sort("created_at", 1).to_list(100)
+    return [_sanitize_provider(p) for p in items]
+
+
+@api_router.post("/providers")
+async def create_provider(body: ProviderIn, user=Depends(get_current_user)):
+    pid = f"prov_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc).isoformat()
+    doc = {
+        "provider_id": pid,
+        "user_id": user["user_id"],
+        "name": body.name.strip(),
+        "base_url": body.base_url.strip().rstrip("/"),
+        "api_key": body.api_key.strip(),
+        "model": body.model.strip(),
+        "is_active": bool(body.is_active),
+        "created_at": now,
+    }
+    if doc["is_active"]:
+        await db.llm_providers.update_many(
+            {"user_id": user["user_id"]}, {"$set": {"is_active": False}}
+        )
+    await db.llm_providers.insert_one(dict(doc))
+    return _sanitize_provider(doc)
+
+
+@api_router.patch("/providers/{provider_id}")
+async def update_provider(provider_id: str, body: ProviderPatch, user=Depends(get_current_user)):
+    existing = await db.llm_providers.find_one(
+        {"provider_id": provider_id, "user_id": user["user_id"]}, {"_id": 0}
+    )
+    if not existing:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    updates = {k: v for k, v in body.dict(exclude_unset=True).items() if v is not None}
+    if "base_url" in updates:
+        updates["base_url"] = updates["base_url"].rstrip("/")
+    if updates.get("is_active"):
+        await db.llm_providers.update_many(
+            {"user_id": user["user_id"]}, {"$set": {"is_active": False}}
+        )
+    if updates:
+        await db.llm_providers.update_one(
+            {"provider_id": provider_id, "user_id": user["user_id"]},
+            {"$set": updates},
+        )
+    refreshed = await db.llm_providers.find_one(
+        {"provider_id": provider_id, "user_id": user["user_id"]}, {"_id": 0}
+    )
+    return _sanitize_provider(refreshed)
+
+
+@api_router.delete("/providers/{provider_id}")
+async def delete_provider(provider_id: str, user=Depends(get_current_user)):
+    await db.llm_providers.delete_one(
+        {"provider_id": provider_id, "user_id": user["user_id"]}
+    )
+    return {"ok": True}
+
+
+@api_router.post("/providers/{provider_id}/test")
+async def test_provider(provider_id: str, user=Depends(get_current_user)):
+    """Quick smoke-test: ping /models on the OpenAI-compatible endpoint."""
+    p = await db.llm_providers.find_one(
+        {"provider_id": provider_id, "user_id": user["user_id"]}, {"_id": 0}
+    )
+    if not p:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    url = p["base_url"].rstrip("/") + "/models"
+    headers = {"Authorization": f"Bearer {p['api_key']}"}
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as cli:
+            r = await cli.get(url, headers=headers)
+            return {"ok": r.status_code < 400, "status": r.status_code, "body": (r.text or "")[:400]}
+    except Exception as e:
+        return {"ok": False, "status": 0, "body": str(e)[:400]}
+
+
+async def get_active_provider(user_id: str) -> Optional[dict]:
+    return await db.llm_providers.find_one(
+        {"user_id": user_id, "is_active": True}, {"_id": 0}
+    )
+
+
+# ============== ADMIN ROUTES ==============
+@api_router.get("/admin/me")
+async def admin_me(user=Depends(get_current_user)):
+    return {"is_admin": is_admin(user), "email": user["email"]}
+
+
+@api_router.get("/admin/stats")
+async def admin_stats(_admin=Depends(require_admin)):
+    users = await db.users.count_documents({})
+    sessions_count = await db.chat_sessions.count_documents({})
+    messages_count = await db.chat_messages.count_documents({})
+    providers_count = await db.llm_providers.count_documents({})
+    recent_msgs = await db.chat_messages.find({}, {"_id": 0}).sort("created_at", -1).limit(10).to_list(10)
+    return {
+        "users": users,
+        "sessions": sessions_count,
+        "messages": messages_count,
+        "providers": providers_count,
+        "recent_messages": recent_msgs,
+    }
+
+
+@api_router.get("/admin/users")
+async def admin_users(_admin=Depends(require_admin)):
+    users = await db.users.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    # enrich with counts
+    out = []
+    for u in users:
+        uid = u["user_id"]
+        ws_count = await db.chat_sessions.count_documents({"user_id": uid})
+        prov_count = await db.llm_providers.count_documents({"user_id": uid})
+        msg_count = await db.chat_messages.count_documents({
+            "session_id": {"$in": [
+                s["session_id"] for s in
+                await db.chat_sessions.find({"user_id": uid}, {"session_id": 1, "_id": 0}).to_list(1000)
+            ]}
+        })
+        out.append({
+            **u,
+            "is_admin": is_admin(u),
+            "workspaces": ws_count,
+            "providers": prov_count,
+            "messages": msg_count,
+        })
+    return out
+
+
+@api_router.delete("/admin/users/{user_id}")
+async def admin_delete_user(user_id: str, admin=Depends(require_admin)):
+    if user_id == admin["user_id"]:
+        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+    # gather user's session ids first
+    sess_ids = [s["session_id"] async for s in
+                db.chat_sessions.find({"user_id": user_id}, {"session_id": 1, "_id": 0})]
+    await db.chat_messages.delete_many({"session_id": {"$in": sess_ids}})
+    await db.chat_sessions.delete_many({"user_id": user_id})
+    await db.llm_providers.delete_many({"user_id": user_id})
+    await db.user_sessions.delete_many({"user_id": user_id})
+    await db.users.delete_one({"user_id": user_id})
+    return {"ok": True}
+
+
+# ============== OPENAI-COMPATIBLE STREAMING ==============
+async def stream_openai(req: ChatRequest, user: dict, provider: dict) -> AsyncGenerator[str, None]:
+    """Stream from any OpenAI-compatible /v1/chat/completions endpoint via SSE."""
+    url = provider["base_url"].rstrip("/") + "/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {provider['api_key']}",
+        "Content-Type": "application/json",
+    }
+    msgs = [{"role": "system", "content": build_system_instruction()}]
+    for m in req.history:
+        if m.get("role") in ("user", "assistant"):
+            msgs.append({"role": m["role"], "content": m.get("content", "")})
+    msgs.append({"role": "user", "content": req.prompt})
+
+    payload = {
+        "model": provider["model"],
+        "messages": msgs,
+        "stream": True,
+        "temperature": 0.7,
+    }
+
+    # Persist user message
+    await db.chat_messages.insert_one({
+        "session_id": req.session_id,
+        "role": "user",
+        "content": req.prompt,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+    yield f"data: {json.dumps({'type': 'status', 'state': 'initializing', 'model': provider['model']})}\n\n"
+
+    full_text = ""
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            async with client.stream("POST", url, json=payload, headers=headers) as r:
+                if r.status_code >= 400:
+                    body = await r.aread()
+                    err = body.decode(errors="ignore")[:300]
+                    yield f"data: {json.dumps({'type': 'error', 'message': f'Provider {r.status_code}: {err}'})}\n\n"
+                    return
+
+                first = True
+                async for line in r.aiter_lines():
+                    if not line or not line.startswith("data:"):
+                        continue
+                    data = line[5:].strip()
+                    if data == "[DONE]":
+                        break
+                    try:
+                        obj = json.loads(data)
+                    except json.JSONDecodeError:
+                        continue
+                    choices = obj.get("choices") or []
+                    if not choices:
+                        continue
+                    delta = (choices[0].get("delta") or {}).get("content") or ""
+                    if first and delta:
+                        yield f"data: {json.dumps({'type': 'status', 'state': 'generating'})}\n\n"
+                        first = False
+                    if delta:
+                        full_text += delta
+                        yield f"data: {json.dumps({'type': 'delta', 'text': delta})}\n\n"
+
+        await db.chat_messages.insert_one({
+            "session_id": req.session_id,
+            "role": "assistant",
+            "content": full_text,
+            "citations": [],
+            "model": provider["model"],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        await db.chat_sessions.update_one(
+            {"session_id": req.session_id, "user_id": user["user_id"]},
+            {"$set": {"updated_at": datetime.now(timezone.utc).isoformat()}},
+        )
+        yield f"data: {json.dumps({'type': 'done', 'citations': []})}\n\n"
+    except Exception as e:
+        logger.exception("OpenAI stream failed")
+        yield f"data: {json.dumps({'type': 'error', 'message': str(e)[:400]})}\n\n"
+
+
 # ============== GEMINI STREAMING ==============
 def build_system_instruction() -> str:
     return (
@@ -406,8 +683,22 @@ async def stream_gemini(req: ChatRequest, user: dict) -> AsyncGenerator[str, Non
 
 @api_router.post("/chat/stream")
 async def chat_stream(req: ChatRequest, user=Depends(get_current_user)):
+    # Determine which generator to use based on user's active provider or explicit provider_id.
+    provider = None
+    if req.provider_id:
+        provider = await db.llm_providers.find_one(
+            {"provider_id": req.provider_id, "user_id": user["user_id"]}, {"_id": 0}
+        )
+    else:
+        provider = await get_active_provider(user["user_id"])
+
+    if provider:
+        gen = stream_openai(req, user, provider)
+    else:
+        gen = stream_gemini(req, user)
+
     return StreamingResponse(
-        stream_gemini(req, user),
+        gen,
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

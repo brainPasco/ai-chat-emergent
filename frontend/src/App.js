@@ -7,6 +7,8 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Login from "@/components/Login";
 import AuthCallback from "@/components/AuthCallback";
 import Workspace from "@/components/Workspace";
+import Settings from "@/components/Settings";
+import Admin from "@/components/Admin";
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -35,6 +37,22 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Workspace />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <Settings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute>
+            <Admin />
           </ProtectedRoute>
         }
       />

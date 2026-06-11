@@ -97,6 +97,9 @@ export default function Chat({
   onStop,
   mode,
   enableGrounding,
+  usingOpenAI = false,
+  providerLabel,
+  providerModel,
 }) {
   const [input, setInput] = useState("");
   const scrollRef = useRef(null);
@@ -203,11 +206,19 @@ export default function Chat({
             />
             <div className="flex items-center justify-between px-2 py-1.5 border-t border-white/5">
               <div className="flex items-center gap-1.5 font-mono-code text-[10px] uppercase tracking-widest text-white/40">
-                <span className={`px-1.5 py-0.5 border ${mode === "pro" ? "border-[#FFFF00]/40 text-[#FFFF00]" : "border-[#39FF14]/40 text-[#39FF14]"}`}>
-                  {mode === "pro" ? "Thinking" : "Flash"}
-                </span>
-                {enableGrounding && (
-                  <span className="px-1.5 py-0.5 border border-[#00FFFF]/40 text-[#00FFFF]">Grounding</span>
+                {usingOpenAI ? (
+                  <span className="px-1.5 py-0.5 border border-[#39FF14]/40 text-[#39FF14]" title={providerModel}>
+                    {providerLabel || "OpenAI"}
+                  </span>
+                ) : (
+                  <>
+                    <span className={`px-1.5 py-0.5 border ${mode === "pro" ? "border-[#FFFF00]/40 text-[#FFFF00]" : "border-[#39FF14]/40 text-[#39FF14]"}`}>
+                      {mode === "pro" ? "Thinking" : "Flash"}
+                    </span>
+                    {enableGrounding && (
+                      <span className="px-1.5 py-0.5 border border-[#00FFFF]/40 text-[#00FFFF]">Grounding</span>
+                    )}
+                  </>
                 )}
               </div>
               <div className="flex items-center gap-1.5">
