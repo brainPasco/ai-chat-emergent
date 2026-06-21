@@ -149,9 +149,9 @@ export default function Workspace() {
   );
 
   const handleLogout = useCallback(async () => {
-    await logout();
-    navigate("/login", { replace: true });
-  }, [logout, navigate]);
+    // Auth disabled — logout is a no-op
+    toast.info("Auth is disabled in local mode");
+  }, []);
 
   const handleStop = useCallback(() => {
     if (streamCtrlRef.current) {
@@ -339,19 +339,10 @@ export default function Workspace() {
                   data-testid="user-menu-trigger"
                   className="h-8 pl-2 pr-2 ml-1 border-l border-white/10 flex items-center gap-2 hover:bg-white/5 rounded-r-md transition"
                 >
-                  {user.picture ? (
-                    <img
-                      src={user.picture}
-                      alt={user.name}
-                      className="h-6 w-6 rounded-md border border-white/10"
-                      data-testid="user-avatar"
-                    />
-                  ) : (
-                    <div className="h-6 w-6 rounded-md bg-white/10 grid place-items-center text-xs">
-                      {user.name?.[0]?.toUpperCase()}
-                    </div>
-                  )}
-                  <span className="text-[12px] text-white/70 hidden md:inline">{user.name}</span>
+                  <div className="h-6 w-6 rounded-md bg-white/10 grid place-items-center text-xs">
+                    <CircuitBoard className="h-3.5 w-3.5 text-[#007AFF]" />
+                  </div>
+                  <span className="text-[12px] text-white/70 hidden md:inline">Local</span>
                   <ChevronDown className="h-3 w-3 text-white/50" />
                 </button>
               </DropdownMenuTrigger>
@@ -361,9 +352,9 @@ export default function Workspace() {
                 className="bg-[#0A0A0A] border-white/10 text-white min-w-[200px]"
               >
                 <DropdownMenuLabel className="font-mono-code text-[10px] uppercase tracking-widest text-white/40 px-2 py-1.5">
-                  Signed in as
+                  Local mode
                 </DropdownMenuLabel>
-                <div className="px-2 pb-2 text-[12px] text-white/70 truncate">{user.email}</div>
+                <div className="px-2 pb-2 text-[12px] text-white/70 truncate">Auth disabled</div>
                 <DropdownMenuSeparator className="bg-white/10" />
                 <DropdownMenuItem
                   data-testid="menu-settings"
@@ -372,22 +363,12 @@ export default function Workspace() {
                 >
                   <Settings2 className="h-3.5 w-3.5 text-[#007AFF]" /> Provider Settings
                 </DropdownMenuItem>
-                {isAdmin && (
-                  <DropdownMenuItem
-                    data-testid="menu-admin"
-                    onClick={() => navigate("/admin")}
-                    className="cursor-pointer focus:bg-white/5 gap-2 text-[12.5px]"
-                  >
-                    <Shield className="h-3.5 w-3.5 text-[#FFFF00]" /> Admin Panel
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuSeparator className="bg-white/10" />
                 <DropdownMenuItem
-                  data-testid="logout-button"
-                  onClick={handleLogout}
-                  className="cursor-pointer focus:bg-red-500/10 gap-2 text-[12.5px] text-red-400"
+                  data-testid="menu-admin"
+                  onClick={() => navigate("/admin")}
+                  className="cursor-pointer focus:bg-white/5 gap-2 text-[12.5px]"
                 >
-                  <LogOut className="h-3.5 w-3.5" /> Log out
+                  <Shield className="h-3.5 w-3.5 text-[#FFFF00]" /> Admin Panel
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

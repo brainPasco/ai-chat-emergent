@@ -85,107 +85,31 @@ class ProviderPatch(BaseModel):
     is_active: Optional[bool] = None
 
 
-# ============== AUTH HELPERS ==============
-async def get_current_user(request: Request) -> dict:
-    token = request.cookies.get("session_token")
-    if not token:
-        auth = request.headers.get("Authorization", "")
-        if auth.startswith("Bearer "):
-            token = auth[7:]
-    if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-
-    sess = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
-    if not sess:
-        raise HTTPException(status_code=401, detail="Invalid session")
-
-    expires_at = sess["expires_at"]
-    if isinstance(expires_at, str):
-        expires_at = datetime.fromisoformat(expires_at)
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    if expires_at < datetime.now(timezone.utc):
-        raise HTTPException(status_code=401, detail="Session expired")
-
-    user = await db.users.find_one({"user_id": sess["user_id"]}, {"_id": 0})
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-    return user
+# ============== AUTH HELPERS (DISABLED — single default user) ==============
+DEFAULT_USER = {
+    "user_id": "local-user",
+    "email": "local@agentspace.dev",
+    "name": "Local User",
+    "picture": None,
+}
 
 
-# ============== AUTH ROUTES ==============
-@api_router.post("/auth/session")
-async def create_session(request: Request, response: Response):
-    body = await request.json()
-    session_id = body.get("session_id")
-    if not session_id:
-        raise HTTPException(status_code=400, detail="session_id required")
-
-    # Exchange session_id with Emergent
-    async with httpx.AsyncClient() as client:
-        r = await client.get(
-            "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
-            headers={"X-Session-ID": session_id},
-            timeout=10.0,
-        )
-        if r.status_code != 200:
-            raise HTTPException(status_code=401, detail="Invalid session_id")
-        data = r.json()
-
-    email = data["email"]
-    name = data.get("name", email)
-    picture = data.get("picture")
-    session_token = data["session_token"]
-
-    # Upsert user
-    existing = await db.users.find_one({"email": email}, {"_id": 0})
-    if existing:
-        user_id = existing["user_id"]
-        await db.users.update_one(
-            {"user_id": user_id},
-            {"$set": {"name": name, "picture": picture}},
-        )
-    else:
-        user_id = f"user_{uuid.uuid4().hex[:12]}"
+async def _ensure_default_user():
+    existing = await db.users.find_one({"user_id": DEFAULT_USER["user_id"]}, {"_id": 0})
+    if not existing:
         await db.users.insert_one({
-            "user_id": user_id,
-            "email": email,
-            "name": name,
-            "picture": picture,
+            **DEFAULT_USER,
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
 
-    # Store session
-    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
-    await db.user_sessions.update_one(
-        {"session_token": session_token},
-        {"$set": {
-            "user_id": user_id,
-            "session_token": session_token,
-            "expires_at": expires_at.isoformat(),
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }},
-        upsert=True,
-    )
 
-    response.set_cookie(
-        "session_token",
-        session_token,
-        httponly=True,
-        secure=True,
-        samesite="none",
-        path="/",
-        max_age=7 * 24 * 60 * 60,
-    )
-
-    return {
-        "user_id": user_id,
-        "email": email,
-        "name": name,
-        "picture": picture,
-    }
+async def get_current_user(request: Request) -> dict:
+    # Auth disabled: always return the default local user
+    await _ensure_default_user()
+    return dict(DEFAULT_USER)
 
 
+# ============== AUTH ROUTES (NO-OP — auth disabled) ==============
 @api_router.get("/auth/me")
 async def get_me(user=Depends(get_current_user)):
     return {
@@ -197,11 +121,7 @@ async def get_me(user=Depends(get_current_user)):
 
 
 @api_router.post("/auth/logout")
-async def logout(request: Request, response: Response):
-    token = request.cookies.get("session_token")
-    if token:
-        await db.user_sessions.delete_one({"session_token": token})
-    response.delete_cookie("session_token", path="/", samesite="none", secure=True)
+async def logout(response: Response):
     return {"ok": True}
 
 
@@ -261,16 +181,12 @@ async def get_messages(session_id: str, user=Depends(get_current_user)):
 
 
 # ============== ADMIN HELPER ==============
-ADMIN_EMAILS = {e.strip().lower() for e in os.environ.get("ADMIN_EMAILS", "").split(",") if e.strip()}
-
-
+# Auth disabled — admin is always allowed in local mode
 def is_admin(user: dict) -> bool:
-    return (user.get("email") or "").lower() in ADMIN_EMAILS
+    return True
 
 
 async def require_admin(user=Depends(get_current_user)) -> dict:
-    if not is_admin(user):
-        raise HTTPException(status_code=403, detail="Admin access required")
     return user
 
 

@@ -45,17 +45,12 @@ export default function Admin() {
   useEffect(() => {
     (async () => {
       try {
-        const m = await api.adminMe();
-        if (!m.is_admin) {
-          setIsAdmin(false);
-          return;
-        }
         setIsAdmin(true);
         const [s, u] = await Promise.all([api.adminStats(), api.adminUsers()]);
         setStats(s);
         setUsers(u);
       } catch (e) {
-        setIsAdmin(false);
+        toast.error("Failed to load admin data");
       } finally {
         setLoading(false);
       }

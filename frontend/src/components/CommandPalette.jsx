@@ -122,18 +122,9 @@ export default function CommandPalette({
               <Settings2 className="mr-2 h-4 w-4 text-[#007AFF]" />
               <span>Provider Settings</span>
             </CommandItem>
-            {isAdmin && (
-              <CommandItem onSelect={() => run(onOpenAdmin)} data-testid="cmd-open-admin">
-                <Shield className="mr-2 h-4 w-4 text-[#FFFF00]" />
-                <span>Admin Panel</span>
-              </CommandItem>
-            )}
-          </CommandGroup>
-          <CommandSeparator />
-          <CommandGroup heading="Account">
-            <CommandItem onSelect={() => run(onLogout)} data-testid="cmd-logout">
-              <LogOut className="mr-2 h-4 w-4 text-red-400" />
-              <span>Log out</span>
+            <CommandItem onSelect={() => run(onOpenAdmin)} data-testid="cmd-open-admin">
+              <Shield className="mr-2 h-4 w-4 text-[#FFFF00]" />
+              <span>Admin Panel</span>
             </CommandItem>
           </CommandGroup>
         </CommandList>

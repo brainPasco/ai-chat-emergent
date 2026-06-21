@@ -1,7 +1,13 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
 
-const AuthContext = createContext({ user: null, loading: true, refresh: () => {}, logout: () => {} });
+const AuthContext = createContext({
+  user: null,
+  loading: false,
+  refresh: () => {},
+  logout: () => {},
+  setUser: () => {},
+});
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -18,24 +24,14 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  // Auth disabled — fetch the default local user from /api/auth/me (no-op endpoint)
   useEffect(() => {
-    // CRITICAL: If returning from OAuth callback, skip the /me check.
-    // AuthCallback will exchange the session_id and establish the session first.
-    if (window.location.hash?.includes("session_id=")) {
-      setLoading(false);
-      return;
-    }
-    // Skip /me on /login to avoid noisy 401
-    if (window.location.pathname === "/login") {
-      setLoading(false);
-      return;
-    }
     refresh();
   }, [refresh]);
 
   const logout = useCallback(async () => {
     try { await api.logout(); } catch {}
-    setUser(null);
+    // No-op in auth-disabled mode; do not clear local user
   }, []);
 
   return (
